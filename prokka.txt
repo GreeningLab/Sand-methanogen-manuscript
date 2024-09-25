@@ -1,0 +1,6 @@
+#!/bin/bash
+
+conda activate prokka
+
+prokka --kingdom Archaea --outdir <output directory> --prefix <sample name> \
+<genome fasta file>
