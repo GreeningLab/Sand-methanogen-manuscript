@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# This script predicts genes from a set of bins or from unbinned contigs and then finds hits to a DIAMOND database
+# to run as a loop for unbinned contigs
+# for file in <contigs directory>; do gene_prediction_annotation.sh $file meta <diamond database> <output directory>; done
+# to run as a loop for MAGs
+# for file in <MAGs directory>; do gene_prediction_annotation.sh $file single <diamond database> <output directory>; done
+
+file=$1
+mode=$2
+dmnd=$3
+outdir=$4
+
+name="$(basename -- $file | sed 's/.fa//')"
+
+conda activate diamond
+module load prodigal/2.6.3
+
+# Mode is either 'single' (for MAGs) or 'meta' (for unbinned contigs)
+mkdir $outdir/ORFs
+prodigal -p $mode -i $file -a $outdir/ORFs/"$name"_ORFs.fasta 
+
+# When genes predicted, then run them through DIAMOND
+mkdir $outdir/diamond_hits
+diamond blastp --db $dmnd --query $outdir/ORFs/"$name"_ORFs.fasta --out $outdir/diamond_hits/"$name"_30_hits_master.txt --threads 8 \
+--outfmt 6 qtitle stitle pident length qstart qend sstart send evalue bitscore qcovhsp scovhsp full_qseq --max-target-seqs 1 --max-hsps 1 --id 30
