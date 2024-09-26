@@ -1,0 +1,29 @@
+#RUN MSA WITH GTDBtk on Metagenome-assembled-genomes (MAGs)
+
+conda activate gtdbtk-2.3.2
+
+# Set path for GTDB database
+export GTDBTK_DATA_PATH=/home/fricci/rp24/fra/software/GTDBtk/release214
+
+Bin_DIR=~/path_to_MAGs_directory
+GTDB_DIR=~/Sand-methanogen-manuscript/GTDBtk-MSA
+
+# Identify GTDB marker genes in genomes
+gtdbtk identify -x fna --cpus 25 --genome_dir $Bin_DIR --out_dir $GTDB_DIR/Identify --prefix Sand-methanogen-manuscript
+
+# Create a multiple sequence alignment based on the AR122/BAC120 marker set
+gtdbtk align --identify_dir $GTDB_DIR/Identify --out_dir $GTDB_DIR/MSA/ --prefix Sand-methanogen-manuscript --skip_gtdb_refs --rnd_seed 10 --cpus 100
+
+
+#RUN IQTREE2 TO CREATE TREE
+
+conda activate iqtree2
+
+## FILE PATHWAYS
+# Enter file pathways and output directory
+Input_DIR=~/Sand-methanogen-manuscript/GTDBtk-MSA/MSA/align
+
+cd $Input_DIR
+iqtree2 -T 25 -mem 60G -m MFP -B 1000 -s Sand-methanogen.ar53.user_msa.fasta.gz
+
+#VISUALIZE AND MODIFY TREE IN ITOL

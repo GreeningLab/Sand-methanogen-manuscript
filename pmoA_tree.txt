@@ -1,0 +1,26 @@
+#RUN MUSCLE TO ALIGN pmoA sequences longer than 100bp
+
+conda activate muscle
+
+Input_DIR=~/Sand-methanogen-manuscriptcontigs_analysis/pmoA_tree
+Out_DIR=~/Sand-methanogen-manuscript/contigs_analysis/pmoA_tree
+
+muscle -align $Input_DIR/Sand-methanogen_and_reference_pmoA.fasta -output $Out_DIR/aln_Sand-methanogen_and_reference_pmoA.fasta -threads 20
+
+muscle -align $Input_DIR/aln_Sand-methanogen_and_reference_pmoA.fasta -stratified -output $Out_DIR/ensemble.efa -threads 20
+ 
+
+#RUN IQTREE2 TO CREATE TREE
+
+conda activate qtree2
+
+## FILE PATHWAYS
+# Enter file pathways and output directory
+Input_DIR=~/Sand-methanogen-manuscriptcontigs_analysis/pmoA_tree
+
+# Construct tree for enzymes
+cd $Input_DIR
+iqtree2 -T AUTO -mem 100G -m MFP -B 1000 -s aln_Sand-methanogen_and_reference_pmoA.fasta
+
+##VISUALIZE AND MODIFY TREE USING ITOL
+

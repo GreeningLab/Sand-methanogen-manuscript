@@ -1,0 +1,165 @@
+#RUN METHAPHOR PIPELINE FOR METAGENOME QC, FILTERING, ASSEMBLY, MAPPING
+
+conda activate methaphor
+
+cd ~/Sand-methanogen-manuscript
+
+metaphor config settings
+
+metaphor config input -i <DIRECTORY_WITH_FASTQ_FILES>
+
+metaphor execute -c 48 -y
+
+
+#RUN PRODIGAL ON ASSEMBLY
+
+Nucleotide_DIR=~/Sand-methanogen-manuscript/output/assembly/megahit/coassembly
+Protein_DIR=~/Sand-methanogen-manuscript/contigs_analysis/Prodigal
+
+cd $Nucleotide_DIR
+for contig in *.fa
+do
+base="$(basename -- $contig | sed 's/.fa//')"
+prodigal -i $contig -d "$base".fna -a "$base".faa -o "$base".gff -f gff -q
+done
+
+# Move files into specific directories
+mkdir -p $Protein_DIR/nt
+mkdir -p $Protein_DIR/Protein
+mkdir -p $Protein_DIR/GFF
+mv $Nucleotide_DIR/*fna $Protein_DIR/nt
+mv $Nucleotide_DIR/*faa $Protein_DIR/Protein
+mv $Nucleotide_DIR/*gff $Protein_DIR/GFF
+
+
+#RUN FUNCTIONAL PREDICTION
+
+diamond_db=~/path_to_diamond_db
+contigs_dir=~/Sand-methanogen-manuscript/contigs_analysis/Prodigal/Protein
+out_dir=~/Sand-methanogen-manuscript/contigs_analysis/functional_annotation_contigs
+
+mkdir -p $out_dir
+mkdir -p $out_dir/raw
+mkdir -p $out_dir/prefiltered 
+mkdir -p $out_dir/filtered
+mkdir -p $out_dir/summary
+
+#Run diamond blastp
+
+conda activate checkm2
+
+cd $contigs_dir
+for mag in *.faa
+do
+base="$(basename -- $mag | sed 's/.fasta//')"
+diamond blastp --db $diamond_db --query $mag --out $out_dir/"$base"_Funcgenes_51.txt --max-hsps 1 --max-target-seqs 1 --threads 64 --outfmt 6 qtitle stitle pident slen qstart qend sstart send evalue bitscore qcovhsp scovhsp length full_qseq
+done
+
+cd $out_dir
+for file in *Funcgenes_51.txt
+do
+awk '{print $0,"\t",FILENAME}' $file >> summary/all_contigs_Funcgenes_51.txt
+done
+
+#cat all_contigs_Funcgenes_51.txt | wc -l #22440
+
+# Prefilter based on either query or subject coverager >= 80%
+# This allows authentic situations where query sequences are long, which leads to high subject coverage and low query covverage.
+
+cd $out_dir
+for hit in *_Funcgenes_51.txt
+do
+awk -F '\t' '$11 >= 80 || $12 >= 80 {print $0}' $hit > prefiltered/${hit/.txt/_prefiltered.txt}
+done
+
+## Calculate retention ratio
+for hit in prefiltered/*prefiltered.txt
+do
+awk '{print $0,"\t",FILENAME}' $hit >> summary/all_contigs_Funcgenes_51_prefiltered.txt
+done
+
+#cat all_contigs_Funcgenes_51_prefiltered.txt | wc -l # 12238
+
+# Filter based on established parameters
+cd $out_dir/prefiltered
+for hit in *_Funcgenes_51_prefiltered.txt
+do
+
+# Sulfur cycle
+grep "DsrA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "FCC-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "Sqr-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "Sor-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "AsrA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "SoxB-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+# Carbon fixation
+grep "RbcL-" $hit | awk -F '\t' '{if ($3 >= 60) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "AcsB-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "CooS-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "AclB-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "Mcr-" $hit | awk -F '\t' '{if ($3 >= 75) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "HbsC-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "HbsT-" $hit | awk -F '\t' '{if ($3 >= 75) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+# Nitrogen cycle
+grep "AmoA-" $hit | awk -F '\t' '{if ($3 >= 60) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NxrA-" $hit | awk -F '\t' '{if ($3 >= 60) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NarG-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NapA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NirS-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NirK-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NrfA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NosZ-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "HzsA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NifH-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NorB-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "Nod-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+# Trace gas metabolism
+grep "CoxL-" $hit | awk -F '\t' '{if ($3 >= 60) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "FeFe-" $hit | awk -F '\t' '{if ($3 >= 60) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "\[Fe]" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NiFe-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' | awk -F '\t' '{if (!/Group\ 4/) print $0; else if ($3 >= 60) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "PmoA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "MmoA-" $hit | awk -F '\t' '{if ($3 >= 60) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "McrA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "IsoA-" $hit | awk -F '\t' '{if ($3 >= 70) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+# Phototrophy
+grep "RHO-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "PsaA-" $hit | awk -F '\t' '{if ($3 >= 80) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "PsbA-" $hit | awk -F '\t' '{if ($3 >= 70) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+# Alternative_e_acceptor
+grep "ArsC-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "MtrB-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "OmcB-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "RdhA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "YgfK-" $hit | awk -F '\t' '{if ($3 >= 70) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+# Alternative_e_donor
+grep "ARO-" $hit | awk -F '\t' '{if ($3 >= 70) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "Cyc2" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "FdhA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+# Respiration
+grep "SdhA_FrdA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "AtpA-" $hit | awk -F '\t' '{if ($3 >= 70) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "CcoN-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "CoxA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "CydA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "CyoA-" $hit | awk -F '\t' '{if ($3 >= 50) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+grep "NuoF-" $hit | awk -F '\t' '{if ($3 >= 60) print $0}' >> $out_dir/filtered/${hit/_prefiltered.txt/_filtered.txt}
+done
+
+## Concatenate all summary files for a dataset
+cd $out_dir/
+for hit in filtered/*_filtered.txt
+do
+awk '{print $0,"\t",FILENAME}' $hit >> summary/all_contigs_Funcgenes_51_filtered.txt
+done
+## Count retention ratio
+#cat all_contigs_Funcgenes_51_filtered.txt | wc -l # 4204
+
+# Organise and simplify output
+cd $out_dir
+mv *Funcgenes_51.txt $out_dir/raw
+
+cd summary
+awk -F "\t" '{print $1"\t"$2"\t"$15}' all_contigs_Funcgenes_51_filtered.txt > all_contigs_Funcgenes_51_filtered.summary.tsv
+sed -i 's/_Funcgenes_51_filtered.txt//' all_contigs_Funcgenes_51_filtered.summary.tsv
+sed -i 's/filtered\///' all_contigs_Funcgenes_51_filtered.summary.tsv
